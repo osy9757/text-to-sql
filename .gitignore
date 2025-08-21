@@ -11,9 +11,9 @@
 .packages
 .pub-cache/
 .pub/
-build/
+text_to_sql_web/build/
 coverage/
-lib/generated_plugin_registrant.dart
+text_to_sql_web/lib/generated_plugin_registrant.dart
 # For library packages, don’t commit the pubspec.lock file.
 # Regenerating the pubspec.lock file lets you test your package against the latest compatible versions of its dependencies.
 # See https://dart.dev/guides/libraries/private-files#pubspeclock
@@ -114,7 +114,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# lib/ - Flutter lib 디렉토리는 포함, Python lib만 제외
 lib64/
 parts/
 sdist/
@@ -298,5 +298,10 @@ $RECYCLE.BIN/
 # End of https://www.toptal.com/developers/gitignore/api/macos,windows,python,flutter
  
 ### Project-specific ###
-# Local private workspace (do not upload to GitHub)
-private/
+# Private directory contents (keep directory but hide files)
+private/*
+!private/.gitkeep
+
+# Log directory contents (keep directory but hide files)
+log/*
+!log/.gitkeep

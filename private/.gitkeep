@@ -1,0 +1,2 @@
+# 이 파일은 private 디렉토리를 git에 유지하기 위한 파일입니다.
+# 실제 설정 파일들(config_secrets.py, schema_ontology.json, .env)은 .gitignore로 제외됩니다.
