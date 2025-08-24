@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import asyncio
 import json
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from datetime import datetime
 import traceback
 
@@ -38,11 +38,14 @@ class QueryRequest(BaseModel):
     query: str
 
 class QueryResponse(BaseModel):
+    success: bool
     result: str
     sql: str
     data: List[Dict[str, Any]]
     execution_time: float
     timestamp: str
+    error_type: Optional[str] = None
+    error_details: Optional[str] = None
 
 @app.get("/")
 async def root():
@@ -61,6 +64,69 @@ async def health_check():
         "timestamp": datetime.now().isoformat()
     }
 
+@app.get("/db-check")
+async def check_database_connection():
+    """데이터베이스 연결 상태 확인 엔드포인트"""
+    start_time = asyncio.get_event_loop().time()
+    
+    try:
+        # Text-to-SQL 앱을 통해 DB 연결 테스트
+        from database_connector import RealDatabaseConnection
+        from config import config
+        
+        # DB 연결 인스턴스 생성
+        db_connection = RealDatabaseConnection(environment=config.database.environment)
+        
+        # 간단한 테스트 쿼리 실행
+        test_result = await db_connection.execute_query("SELECT 1 as test_connection")
+        
+        execution_time = asyncio.get_event_loop().time() - start_time
+        
+        if test_result.get("success", False):
+            # DB 설정 정보 가져오기
+            try:
+                ssh_config, db_config = config.database.get_current_configs()
+                db_info = {
+                    "host": db_config.host,
+                    "port": db_config.port,
+                    "database": db_config.database,
+                    "environment": config.database.environment
+                }
+            except Exception:
+                db_info = {
+                    "environment": config.database.environment
+                }
+                
+            return {
+                "success": True,
+                "status": "connected",
+                "message": "✅ 데이터베이스 연결이 정상입니다.",
+                "connection_time": round(execution_time, 3),
+                "database_info": db_info,
+                "test_query_result": test_result.get("data", []),
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "success": False,
+                "status": "error",
+                "message": f"❌ 데이터베이스 연결 실패: {test_result.get('error', '알 수 없는 오류')}",
+                "connection_time": round(execution_time, 3),
+                "error_details": test_result.get("error"),
+                "timestamp": datetime.now().isoformat()
+            }
+            
+    except Exception as e:
+        execution_time = asyncio.get_event_loop().time() - start_time
+        return {
+            "success": False,
+            "status": "error",
+            "message": f"❌ 데이터베이스 연결 테스트 중 오류 발생: {str(e)}",
+            "connection_time": round(execution_time, 3),
+            "error_details": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
 @app.post("/query", response_model=QueryResponse)
 async def process_query(request: QueryRequest):
     """
@@ -70,7 +136,17 @@ async def process_query(request: QueryRequest):
     
     try:
         if not request.query or not request.query.strip():
-            raise HTTPException(status_code=400, detail="쿼리가 비어있습니다.")
+            execution_time = asyncio.get_event_loop().time() - start_time
+            return QueryResponse(
+                success=False,
+                result="❌ 처리 실패: 쿼리가 비어있습니다.",
+                sql="",
+                data=[],
+                execution_time=round(execution_time, 2),
+                timestamp=datetime.now().isoformat(),
+                error_type="validation",
+                error_details="Empty query provided"
+            )
         
         print(f"[{datetime.now().isoformat()}] 쿼리 처리 시작: {request.query}")
         
@@ -114,6 +190,7 @@ async def process_query(request: QueryRequest):
         print(f"[{datetime.now().isoformat()}] 쿼리 처리 완료: {execution_time:.2f}초")
         
         return QueryResponse(
+            success=True,
             result=result_message,
             sql=sql_query,
             data=execution_data,
@@ -128,17 +205,36 @@ async def process_query(request: QueryRequest):
         print(f"[{datetime.now().isoformat()}] 쿼리 처리 오류: {error_message}")
         print(f"Traceback: {traceback.format_exc()}")
         
-        # 구체적인 오류 메시지 제공
-        if "connection" in error_message.lower():
-            error_message = "데이터베이스 연결에 실패했습니다. 연결 설정을 확인해주세요."
-        elif "sql" in error_message.lower():
-            error_message = "SQL 생성 또는 실행 중 오류가 발생했습니다."
-        elif "timeout" in error_message.lower():
-            error_message = "쿼리 실행 시간이 초과되었습니다."
-        else:
-            error_message = f"쿼리 처리 중 오류가 발생했습니다: {error_message}"
+        # 에러 타입 및 사용자 친화적 메시지 분류
+        error_type = "unknown"
+        user_friendly_message = error_message
         
-        raise HTTPException(status_code=500, detail=error_message)
+        if "connection" in error_message.lower():
+            error_type = "database_connection"
+            user_friendly_message = "데이터베이스 연결에 실패했습니다. 연결 설정을 확인해주세요."
+        elif "sql" in error_message.lower():
+            error_type = "sql_generation"
+            user_friendly_message = "SQL 생성 또는 실행 중 오류가 발생했습니다."
+        elif "timeout" in error_message.lower():
+            error_type = "timeout"
+            user_friendly_message = "쿼리 실행 시간이 초과되었습니다."
+        elif "validation" in error_message.lower():
+            error_type = "validation"
+            user_friendly_message = "쿼리 검증 중 오류가 발생했습니다."
+        else:
+            error_type = "processing"
+            user_friendly_message = "쿼리 처리 중 오류가 발생했습니다."
+        
+        return QueryResponse(
+            success=False,
+            result=f"❌ 처리 실패: {user_friendly_message}",
+            sql="",
+            data=[],
+            execution_time=round(execution_time, 2),
+            timestamp=datetime.now().isoformat(),
+            error_type=error_type,
+            error_details=error_message
+        )
 
 if __name__ == "__main__":
     import uvicorn

@@ -302,6 +302,9 @@ $RECYCLE.BIN/
 private/*
 !private/.gitkeep
 
+# Tests and analysis directory (completely ignored)
+tests_and_analysis/
+
 # Log directory contents (keep directory but hide files)
 log/*
 !log/.gitkeep

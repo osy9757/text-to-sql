@@ -54,13 +54,13 @@ class QualityValidatorAgent(BaseAgent):
 
 **출력 형식:**
 ```json
-{
+{{
     "is_valid": true/false,
     "syntax_errors": ["구문 오류 목록"],
     "logic_warnings": ["논리적 경고 목록"], 
     "suggestions": ["개선 제안사항"],
     "final_sql": "최종 수정된 SQL 쿼리 (오류가 없다면 원본과 동일)"
-}
+}}
 ```
 
 **최종 승인 기준:**
@@ -234,7 +234,7 @@ class QualityValidatorAgent(BaseAgent):
             if validation_result.is_valid:
                 state.final_sql = validation_result.final_sql
                 state.explanation = state.sql_result.explanation
-                state.current_step = ProcessingStep.COMPLETED
+                state.current_step = ProcessingStep.SQL_EXECUTION  # 다음 단계는 SQL 실행
                 state.processing_history.append("품질 검증 완료: SQL이 유효합니다.")
             else:
                 state.current_step = ProcessingStep.ERROR

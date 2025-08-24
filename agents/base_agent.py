@@ -10,6 +10,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from config import config
 from models import AgentState, AgentType
+from logger import debug_logger
 
 class BaseAgent(ABC):
     # 시스템 모든 에이전트의 기본 클래스
@@ -61,8 +62,22 @@ class BaseAgent(ABC):
     async def _invoke_llm(self, prompt_template: ChatPromptTemplate, input_data: Dict[str, Any]) -> str:
         # 주어진 프롬프트와 입력으로 언어 모델 호출
         try:
+            import time
+            start_time = time.perf_counter()
+            
             chain = prompt_template | self.llm
             response = await chain.ainvoke(input_data)
+            
+            processing_time = time.perf_counter() - start_time
+            
+            # 디버그 로깅
+            debug_logger.log_agent_interaction(
+                agent_name=self.agent_type.value,
+                input_data=str(input_data.get("input", "")),
+                output_data=response.content,
+                processing_time=processing_time
+            )
+            
             return response.content
         except Exception as e:
             if config.debug:

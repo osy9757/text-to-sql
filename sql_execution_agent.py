@@ -26,6 +26,9 @@ class SQLExecutionAgent(BaseAgent):
             
         self.validator = SQLValidator()
         
+        # 세션별 실패 로그 관리
+        self.session_failures = {}
+        
     def get_system_prompt(self) -> str:
         return """
 당신은 SQL 실행 결과 분석 및 검증 전문가입니다.
@@ -58,7 +61,7 @@ class SQLExecutionAgent(BaseAgent):
 - SQL 실행 오류가 발생한 경우
 """
 
-    async def process(self, state: AgentState) -> AgentState:
+    async def process(self, state: AgentState, session_id: Optional[str] = None) -> AgentState:
         # SQL 실행 및 결과 검증
         try:
             if not state.validation_result or not state.validation_result.final_sql:
@@ -105,7 +108,7 @@ class SQLExecutionAgent(BaseAgent):
                     "is_valid": False,
                     "needs_retry": False,
                     "retry_reason": "DB 연결 오류는 재시도할 수 없습니다."
-                })
+                }, session_id)
                 state.current_step = ProcessingStep.ERROR
                 state.error_message = f"데이터베이스 연결 실패: {error_message}"
                 state.processing_history.append("DB 연결 오류로 SQL 실행 불가")
@@ -145,13 +148,13 @@ class SQLExecutionAgent(BaseAgent):
                 # 실행 실패 또는 검증 실패
                 if analysis.get("needs_retry", False):
                     # 재시도 필요
-                    await self._log_failure_for_retry(state.user_query, sql_query, execution_result, analysis)
+                    await self._log_failure_for_retry(state.user_query, sql_query, execution_result, analysis, session_id)
                     state.current_step = ProcessingStep.SQL_DEVELOPMENT  # SQL 재생성으로 돌아감
                     state.error_message = f"SQL 재생성 필요: {analysis.get('retry_reason', '결과 검증 실패')}"
                     state.processing_history.append("SQL 실행 결과 불만족으로 재생성 요청")
                 else:
                     # 완전 실패
-                    await self._log_failure_for_retry(state.user_query, sql_query, execution_result, analysis)
+                    await self._log_failure_for_retry(state.user_query, sql_query, execution_result, analysis, session_id)
                     state.current_step = ProcessingStep.ERROR
                     state.error_message = execution_result.get("error") or "SQL 실행 결과가 유효하지 않습니다."
                     state.processing_history.append("SQL 실행 실패")
@@ -159,7 +162,7 @@ class SQLExecutionAgent(BaseAgent):
             return state
             
         except Exception as e:
-            await self._log_failure_for_retry(state.user_query, "", {"error": str(e)}, {"needs_retry": False})
+            await self._log_failure_for_retry(state.user_query, "", {"error": str(e)}, {"needs_retry": False}, session_id)
             state.current_step = ProcessingStep.ERROR
             state.error_message = f"SQL 실행 중 시스템 오류: {str(e)}"
             state.processing_history.append(f"SQL 실행 에이전트 오류: {str(e)}")
@@ -279,9 +282,9 @@ class SQLExecutionAgent(BaseAgent):
                 "retry_reason": ""
             }
     
-    async def _log_failure_for_retry(self, user_query: str, sql_query: str, execution_result: Dict[str, Any], analysis: Dict[str, Any]):
-        # 실패한 SQL과 분석 결과를 로그에 저장
-        if not config.debug:
+    async def _log_failure_for_retry(self, user_query: str, sql_query: str, execution_result: Dict[str, Any], analysis: Dict[str, Any], session_id: Optional[str] = None):
+        # 세션별로 실패한 SQL과 분석 결과를 통합 로그에 저장
+        if not config.debug or not session_id:
             return
         
         try:
@@ -289,14 +292,13 @@ class SQLExecutionAgent(BaseAgent):
             failure_log_dir = Path("log") / "sql_failures" / datetime.now().strftime("%Y-%m-%d")
             failure_log_dir.mkdir(parents=True, exist_ok=True)
             
-            # 타임스탬프 기반 파일명
-            timestamp = datetime.now().strftime("%H%M%S_%f")[:-3]
-            log_file = failure_log_dir / f"failure_{timestamp}.json"
+            # 세션 기반 파일명
+            log_file = failure_log_dir / f"session_{session_id}_failures.json"
             
-            # 실패 정보 로그
-            failure_data = {
+            # 현재 실패 정보
+            failure_entry = {
                 "timestamp": datetime.now().isoformat(),
-                "user_query": user_query,
+                "attempt_number": None,  # 나중에 계산
                 "generated_sql": sql_query,
                 "execution_result": {
                     "success": execution_result.get("success", False),
@@ -308,11 +310,32 @@ class SQLExecutionAgent(BaseAgent):
                 "retry_needed": analysis.get("needs_retry", False)
             }
             
+            # 기존 로그 파일이 있으면 읽기, 없으면 새로 생성
+            if log_file.exists():
+                with open(log_file, 'r', encoding='utf-8') as f:
+                    session_failures = json.load(f)
+            else:
+                session_failures = {
+                    "session_info": {
+                        "session_id": session_id,
+                        "user_query": user_query,
+                        "start_time": datetime.now().isoformat()
+                    },
+                    "failures": []
+                }
+            
+            # 시도 번호 설정
+            failure_entry["attempt_number"] = len(session_failures["failures"]) + 1
+            
+            # 실패 항목 추가
+            session_failures["failures"].append(failure_entry)
+            
+            # 세션별 통합 로그 파일 저장
             with open(log_file, 'w', encoding='utf-8') as f:
-                json.dump(failure_data, f, ensure_ascii=False, indent=2)
+                json.dump(session_failures, f, ensure_ascii=False, indent=2)
             
             if config.debug:
-                print(f"📝 SQL 실패 로그 저장: {log_file}")
+                print(f"📝 SQL 실패 로그 저장 (세션 {session_id}, 시도 {failure_entry['attempt_number']}): {log_file}")
                 
         except Exception as e:
             if config.debug:

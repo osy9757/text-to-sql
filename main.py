@@ -5,12 +5,13 @@ from typing import Optional
 from orchestrator import TextToSQLOrchestrator
 from models import TextToSQLRequest, TextToSQLResponse
 from config import config
+from logger import debug_logger
 
 class TextToSQLApp:
     # 메인 애플리케이션 클래스
     
-    def __init__(self):
-        self.orchestrator = TextToSQLOrchestrator()
+    def __init__(self, enable_sql_execution: bool = True, use_real_db: bool = False):
+        self.orchestrator = TextToSQLOrchestrator(enable_sql_execution=enable_sql_execution, use_real_db=use_real_db)
     
     async def convert(
         self, 
@@ -20,6 +21,10 @@ class TextToSQLApp:
         optimize_for_performance: bool = True
     ) -> TextToSQLResponse:
         # 자연어 쿼리를 SQL로 변환
+        
+        # 디버그 로깅 시작
+        session_id = debug_logger.start_session(query)
+        
         request = TextToSQLRequest(
             query=query,
             language=language,
@@ -27,7 +32,18 @@ class TextToSQLApp:
             optimize_for_performance=optimize_for_performance
         )
         
-        return await self.orchestrator.convert_text_to_sql(request)
+        response = await self.orchestrator.convert_text_to_sql(request, session_id)
+        
+        # 최종 결과 로깅
+        debug_logger.log_final_result(
+            success=response.success,
+            sql_query=response.sql_query,
+            error_message=response.error_message,
+            processing_time=response.processing_time,
+            metadata=response.metadata
+        )
+        
+        return response
     
     async def interactive_mode(self):
         # 대화형 모드로 실행
@@ -120,8 +136,10 @@ async def main():
     print(f"🔧 모델: {config.api.model_provider} - {config.api.model_name}")
     print(f"📊 스키마: {config.database.schema_path}")
     
-    # 앱 생성 및 실행
-    app = TextToSQLApp()
+    # 앱 생성 및 실행 (SQL 실행 활성화)
+    enable_sql_exec = os.getenv("ENABLE_SQL_EXECUTION", "true").lower() == "true"
+    use_real_db = os.getenv("USE_REAL_DATABASE", "false").lower() == "true"
+    app = TextToSQLApp(enable_sql_execution=enable_sql_exec, use_real_db=use_real_db)
     
     # 대화형 모드 또는 명령행 인수로 실행 여부 확인
     import sys

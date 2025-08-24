@@ -9,6 +9,7 @@ class AgentType(str, Enum):
     QUERY_PLANNER = "query_planner" 
     SQL_DEVELOPER = "sql_developer"
     QUALITY_VALIDATOR = "quality_validator"
+    SQL_EXECUTOR = "sql_executor"
 
 class ProcessingStep(str, Enum):
     # 워크플로우 처리 단계
@@ -16,6 +17,7 @@ class ProcessingStep(str, Enum):
     QUERY_PLANNING = "query_planning"
     SQL_DEVELOPMENT = "sql_development"
     QUALITY_VALIDATION = "quality_validation"
+    SQL_EXECUTION = "sql_execution"
     COMPLETED = "completed"
     ERROR = "error"
 
@@ -57,6 +59,17 @@ class ValidationResult(BaseModel):
     suggestions: List[str]
     final_sql: Optional[str] = None
 
+class SQLExecutionResult(BaseModel):
+    # SQL 실행 결과
+    sql_query: str
+    execution_success: bool
+    result_data: Optional[List[Dict[str, Any]]] = None
+    result_columns: Optional[List[str]] = None
+    row_count: int = 0
+    execution_time: float = 0.0
+    error_message: Optional[str] = None
+    analysis: Optional[Dict[str, Any]] = None
+
 class AgentState(BaseModel):
     # 에이전트 간 전달되는 상태
     # 입력
@@ -72,10 +85,12 @@ class AgentState(BaseModel):
     query_plan: Optional[QueryPlan] = None
     sql_result: Optional[SQLResult] = None
     validation_result: Optional[ValidationResult] = None
+    sql_execution_result: Optional[SQLExecutionResult] = None
     
     # 최종 출력
     final_sql: Optional[str] = None
     explanation: Optional[str] = None
+    execution_data: Optional[List[Dict[str, Any]]] = None
     error_message: Optional[str] = None
     
     # 메타데이터
@@ -97,6 +112,7 @@ class TextToSQLResponse(BaseModel):
     success: bool
     sql_query: Optional[str] = None
     explanation: Optional[str] = None
+    execution_data: Optional[List[Dict[str, Any]]] = None
     error_message: Optional[str] = None
     processing_steps: List[str] = Field(default_factory=list)
     processing_time: Optional[float] = None

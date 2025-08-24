@@ -27,18 +27,18 @@ class SchemaAnalystAgent(BaseAgent):
 
 **출력 형식:**
 ```json
-{
+{{
     "relevant_tables": [
-        {
+        {{
             "name": "User",
             "table": "tb_user", 
             "aliases": ["사용자", "유저"],
-            "attributes": {
-                "id": {"column": "id", "type": "bigint", "aliases": ["사용자ID"]},
-                "name": {"column": "name", "type": "varchar(50)", "aliases": ["이름"]}
-            },
+            "attributes": {{
+                "id": {{"column": "id", "type": "bigint", "aliases": ["사용자ID"]}},
+                "name": {{"column": "name", "type": "varchar(50)", "aliases": ["이름"]}}
+            }},
             "relationships": ["tb_deposit via userId"]
-        }
+        }}
     ],
     "key_relationships": [
         "tb_user.id = tb_deposit.userId",
@@ -49,7 +49,7 @@ class SchemaAnalystAgent(BaseAgent):
         "JOIN tb_orderHistory ON tb_deposit.id = tb_orderHistory.depositId0"
     ],
     "analysis_notes": "사용자의 거래 내역을 조회하기 위해 사용자-예치금-주문내역 테이블을 연결해야 합니다."
-}
+}}
 ```
 
 **중요 사항:**

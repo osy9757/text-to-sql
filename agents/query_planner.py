@@ -33,7 +33,7 @@ class QueryPlannerAgent(BaseAgent):
 
 **출력 형식:**
 ```json
-{
+{{
     "query_steps": [
         "1단계: tb_user 테이블에서 활성 사용자 필터링",
         "2단계: tb_deposit과 LEFT JOIN으로 예치금 정보 결합",
@@ -51,7 +51,7 @@ class QueryPlannerAgent(BaseAgent):
     ],
     "complexity_level": "중간",
     "estimated_performance": "인덱스 활용 시 1초 이내 예상, tb_user.id, tb_deposit.userId 인덱스 필수"
-}
+}}
 ```
 
 **성능 고려사항:**

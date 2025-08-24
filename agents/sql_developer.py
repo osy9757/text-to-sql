@@ -41,12 +41,12 @@ class SQLDeveloperAgent(BaseAgent):
 
 **출력 형식:**
 ```json
-{
+{{
     "sql_query": "실행 가능한 완전한 MySQL 쿼리",
     "explanation": "쿼리 동작 방식과 각 부분의 역할 설명",
     "performance_notes": "성능 관련 주의사항 및 권장사항",
     "expected_columns": ["컬럼1", "컬럼2", "컬럼3"]
-}
+}}
 ```
 
 **중요 원칙:**
