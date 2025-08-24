@@ -96,6 +96,7 @@ class AgentState(BaseModel):
     # 메타데이터
     processing_time: Optional[float] = None
     agent_interactions: List[Dict[str, Any]] = Field(default_factory=list)
+    retry_count: int = 0  # 재시도 횟수 추적
     
     class Config:
         extra = "allow"

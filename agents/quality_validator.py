@@ -121,6 +121,35 @@ class QualityValidatorAgent(BaseAgent):
         
         return warnings
     
+    def _enforce_row_limit(self, sql: str) -> str:
+        # SELECT 쿼리에 LIMIT 1000을 강제 적용
+        sql = sql.strip()
+        sql_upper = sql.upper()
+        
+        # SELECT 쿼리가 아니면 그대로 반환
+        if not sql_upper.startswith('SELECT'):
+            return sql
+        
+        # 이미 LIMIT이 있는지 확인
+        if 'LIMIT' in sql_upper:
+            # 기존 LIMIT 값을 확인하고 1000을 초과하는 경우 1000으로 변경
+            limit_match = re.search(r'LIMIT\s+(\d+)', sql_upper)
+            if limit_match:
+                limit_value = int(limit_match.group(1))
+                if limit_value > 1000:
+                    # LIMIT 값을 1000으로 변경
+                    sql = re.sub(r'LIMIT\s+\d+', 'LIMIT 1000', sql, flags=re.IGNORECASE)
+            return sql
+        
+        # LIMIT이 없으면 추가
+        # 세미콜론 제거
+        if sql.endswith(';'):
+            sql = sql[:-1]
+        
+        # LIMIT 1000 추가
+        sql = sql + ' LIMIT 1000;'
+        return sql
+    
     async def process(self, state: AgentState) -> AgentState:
         # SQL 쿼리 검증 및 수정
         try:
@@ -134,6 +163,9 @@ class QualityValidatorAgent(BaseAgent):
             # 기본 검증 수행
             syntax_errors = self._basic_syntax_check(original_sql)
             logic_warnings = self._check_table_column_references(original_sql, self.schema_data)
+            
+            # LIMIT 1000 강제 적용 (SELECT 쿼리인 경우)
+            modified_sql = self._enforce_row_limit(original_sql)
             
             # 중요한 오류가 있으면 수정 시도
             if syntax_errors:
@@ -192,8 +224,11 @@ class QualityValidatorAgent(BaseAgent):
                             "final_sql": corrected_sql
                         }
                     
-                    # 수정된 SQL 재확인
+                    # 수정된 SQL에 LIMIT 적용 후 재확인
                     corrected_sql = validation_data.get("final_sql", original_sql)
+                    corrected_sql = self._enforce_row_limit(corrected_sql)
+                    validation_data["final_sql"] = corrected_sql
+                    
                     if corrected_sql != original_sql:
                         corrected_errors = self._basic_syntax_check(corrected_sql)
                         if len(corrected_errors) < len(syntax_errors):
@@ -211,12 +246,18 @@ class QualityValidatorAgent(BaseAgent):
                     }
             else:
                 # 중요한 오류 없음, SQL이 수용 가능
+                suggestions = ["쿼리가 유효합니다."] if not logic_warnings else ["경고사항을 확인해주세요."]
+                
+                # LIMIT이 추가되었는지 확인
+                if modified_sql != original_sql:
+                    suggestions.append("행 수 제한을 위해 LIMIT 1000이 자동으로 추가되었습니다.")
+                
                 validation_data = {
                     "is_valid": True,
                     "syntax_errors": [],
                     "logic_warnings": logic_warnings,
-                    "suggestions": ["쿼리가 유효합니다."] if not logic_warnings else ["경고사항을 확인해주세요."],
-                    "final_sql": original_sql
+                    "suggestions": suggestions,
+                    "final_sql": modified_sql
                 }
             
             # 검증 결과 생성

@@ -18,6 +18,7 @@ class SchemaAnalystAgent(BaseAgent):
 1. 한국어 자연어 질의를 분석하여 관련 테이블과 컬럼을 식별
 2. 테이블 간의 관계(외래키)를 파악하여 JOIN 전략 수립
 3. 질의에 필요한 최소한의 테이블만 선별하여 성능 최적화
+4. **중요: 각 컬럼의 format, description, correct_examples, wrong_examples, usage_notes 정보를 반드시 포함**
 
 **분석 과정:**
 1. 사용자 질의에서 핵심 엔티티와 속성 추출
@@ -35,7 +36,17 @@ class SchemaAnalystAgent(BaseAgent):
             "aliases": ["사용자", "유저"],
             "attributes": {{
                 "id": {{"column": "id", "type": "bigint", "aliases": ["사용자ID"]}},
-                "name": {{"column": "name", "type": "varchar(50)", "aliases": ["이름"]}}
+                "name": {{"column": "name", "type": "varchar(50)", "aliases": ["이름"]}},
+                "birth": {{
+                    "column": "birth", 
+                    "type": "varchar(10)", 
+                    "aliases": ["생년월일"],
+                    "format": "YYYYMMDD",
+                    "description": "생년월일이 YYYYMMDD 형식으로 저장",
+                    "correct_examples": ["LEFT(birth, 4) = '1985'"],
+                    "wrong_examples": ["STR_TO_DATE(birth, '%Y-%m-%d')"],
+                    "usage_notes": ["연령 계산 시 LEFT(birth, 4) 사용"]
+                }}
             }},
             "relationships": ["tb_deposit via userId"]
         }}
@@ -57,6 +68,7 @@ class SchemaAnalystAgent(BaseAgent):
 - 불필요한 테이블은 제외하여 쿼리 성능 최적화
 - 복합키나 특수한 관계도 정확히 식별
 - MySQL 특화 제약사항 고려 (예: 외래키 제약, 인덱스 활용)
+- **핵심 규칙: attributes에 포함할 때 스키마의 모든 컬럼 정보(format, description, correct_examples, wrong_examples, usage_notes)를 그대로 복사해서 포함해야 함**
 """
 
     async def process(self, state: AgentState) -> AgentState:

@@ -1,9 +1,13 @@
 # LangGraph를 사용한 텍스트-SQL 변환 멀티에이전트 오케스트레이터
 import asyncio
 import time
+import os
 from typing import Dict, Any, List, Optional
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
+
+# 환경변수로 recursion limit 설정
+os.environ["LANGCHAIN_GRAPH_RECURSION_LIMIT"] = "100"
 
 from models import AgentState, ProcessingStep, TextToSQLRequest, TextToSQLResponse
 from agents.schema_analyst import SchemaAnalystAgent
@@ -220,9 +224,9 @@ class TextToSQLOrchestrator:
             # 워크플로우 실행 (recursion_limit를 configurable에 포함)
             config_dict = {
                 "configurable": {
-                    "thread_id": f"session_{int(start_time)}",
-                    "recursion_limit": 30
-                }
+                    "thread_id": f"session_{int(start_time)}"
+                },
+                "recursion_limit": 100  # recursion_limit를 최상위 레벨로 이동
             }
             
             # invoke 방식으로 실행 (더 간단하고 안정적)

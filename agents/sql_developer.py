@@ -25,6 +25,7 @@ class SQLDeveloperAgent(BaseAgent):
 - 적절한 데이터 타입 처리 (DATE, DATETIME, DECIMAL 등)
 - 한국어 처리를 위한 UTF8 설정 고려
 - LIMIT, OFFSET 올바른 사용
+- **매우 중요**: WHERE 조건이나 데이터 변환 시 반드시 스키마 정보의 format, description, correct_examples를 재확인하여 정확한 방법 사용
 
 **성능 최적화 기법:**
 - 인덱스 활용 가능한 WHERE 조건 구성
@@ -55,6 +56,8 @@ class SQLDeveloperAgent(BaseAgent):
 3. 한국어 별칭으로 사용자 친화적 결과 제공
 4. 에러 발생 가능성 최소화
 5. MySQL 버전 호환성 고려
+6. **필수: 모든 SELECT 쿼리에는 반드시 LIMIT 1000을 추가하여 최대 1000행만 조회**
+7. **핵심 규칙: 각 컬럼의 format, description, correct_examples, wrong_examples, usage_notes를 반드시 참고하여 올바른 방법으로 처리**
 """
 
     async def process(self, state: AgentState) -> AgentState:
@@ -85,6 +88,23 @@ class SQLDeveloperAgent(BaseAgent):
                         "type": col_info.get("type", ""),
                         "korean_aliases": col_info.get("aliases", [])
                     }
+                    
+                    # 데이터 형식 정보 추가
+                    if "format" in col_info:
+                        table_detail["columns"][col_name]["format"] = col_info["format"]
+                    
+                    # 상세 설명 추가
+                    if "description" in col_info:
+                        table_detail["columns"][col_name]["description"] = col_info["description"]
+                    
+                    # 올바른 사용 예시 추가
+                    if "correct_examples" in col_info:
+                        table_detail["columns"][col_name]["correct_examples"] = col_info["correct_examples"]
+                    
+                    # 잘못된 사용 예시 추가
+                    if "wrong_examples" in col_info:
+                        table_detail["columns"][col_name]["wrong_examples"] = col_info["wrong_examples"]
+                    
                     # enum 값이 있으면 추가
                     if "values" in col_info:
                         table_detail["columns"][col_name]["enum_values"] = col_info["values"]
@@ -109,6 +129,14 @@ class SQLDeveloperAgent(BaseAgent):
 
 위 정보를 바탕으로 사용자 질의를 처리하는 완전한 MySQL 쿼리를 작성해주세요.
 반드시 실행 가능한 형태로, 한국어 컬럼 별칭을 포함하여 JSON 형식으로 응답해주세요.
+
+**중요한 주의사항:**
+- **반드시 각 컬럼의 type, format, description 정보를 확인하여 정확한 데이터 타입으로 처리하세요**
+- **correct_examples와 wrong_examples를 참고하여 올바른 방법으로 쿼리를 작성하세요**
+- 특히 날짜/시간 관련 컬럼은 저장 형식(format)을 정확히 파악하여 적절한 함수 사용하세요
+- WHERE 조건이나 GROUP BY, ORDER BY에서 컬럼을 사용할 때 해당 컬럼의 실제 데이터 형식을 고려하세요
+- **데이터 타입이 varchar인 경우와 datetime인 경우를 구분하여 처리하세요**
+- **format이 'YYYYMMDD' 같은 문자열 형식인 경우 적절한 문자열 함수를 사용하세요**
 """
             }
             

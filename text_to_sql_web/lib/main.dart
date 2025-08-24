@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
+import 'dart:html' as html;
+import 'package:excel/excel.dart' as excel_lib;
+import 'dart:typed_data';
 
 void main() {
   runApp(const TextToSQLApp());
@@ -1163,6 +1167,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 color: Color(0xFF2B2D42),
               ),
             ),
+            const Spacer(),
+            // 복사 버튼
+            IconButton(
+              onPressed: _copyTableToClipboard,
+              icon: const Icon(Icons.copy, size: 18),
+              tooltip: '테이블 복사',
+              style: IconButton.styleFrom(
+                foregroundColor: Colors.blue[600],
+                padding: const EdgeInsets.all(8),
+              ),
+            ),
+            // 엑셀 다운로드 버튼
+            IconButton(
+              onPressed: _downloadExcel,
+              icon: const Icon(Icons.download, size: 18),
+              tooltip: '엑셀 다운로드',
+              style: IconButton.styleFrom(
+                foregroundColor: Colors.green[600],
+                padding: const EdgeInsets.all(8),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 12),
@@ -1171,23 +1196,25 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             border: Border.all(color: Colors.grey.withOpacity(0.3)),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              headingRowColor: MaterialStateProperty.all(Colors.grey[100]),
-              columns: columns.map((column) => DataColumn(
-                label: Text(
-                  column,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
+          child: SelectionArea(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                headingRowColor: MaterialStateProperty.all(Colors.grey[100]),
+                columns: columns.map((column) => DataColumn(
+                  label: Text(
+                    column,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-              )).toList(),
-              rows: _executionData.map((row) => DataRow(
-                cells: columns.map((column) => DataCell(
-                  Text(row[column].toString()),
                 )).toList(),
-              )).toList(),
+                rows: _executionData.map((row) => DataRow(
+                  cells: columns.map((column) => DataCell(
+                    Text(row[column].toString()),
+                  )).toList(),
+                )).toList(),
+              ),
             ),
           ),
         ),
@@ -1759,5 +1786,74 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     formatted = formatted.trim();
     
     return formatted;
+  }
+
+  // 엑셀 다운로드 기능
+  void _downloadExcel() {
+    if (_executionData.isEmpty) return;
+
+    // Excel 워크북 생성
+    final excel = excel_lib.Excel.createExcel();
+    final sheet = excel['Sheet1'];
+
+    // 컬럼명 추가
+    final columns = _executionData.first.keys.toList();
+    for (int i = 0; i < columns.length; i++) {
+      sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0))
+          .value = excel_lib.TextCellValue(columns[i]);
+    }
+
+    // 데이터 추가
+    for (int rowIndex = 0; rowIndex < _executionData.length; rowIndex++) {
+      final row = _executionData[rowIndex];
+      for (int colIndex = 0; colIndex < columns.length; colIndex++) {
+        final value = row[columns[colIndex]];
+        sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: colIndex, rowIndex: rowIndex + 1))
+            .value = excel_lib.TextCellValue(value?.toString() ?? '');
+      }
+    }
+
+    // 바이너리 데이터로 변환
+    final fileBytes = excel.encode();
+    final blob = html.Blob([Uint8List.fromList(fileBytes!)]);
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    
+    // 다운로드 링크 생성 및 클릭
+    final anchor = html.AnchorElement(href: url)
+      ..setAttribute('download', 'query_results_${DateTime.now().millisecondsSinceEpoch}.xlsx')
+      ..click();
+    
+    // URL 해제
+    html.Url.revokeObjectUrl(url);
+  }
+
+  // 테이블 데이터를 클립보드에 복사하는 기능
+  void _copyTableToClipboard() {
+    if (_executionData.isEmpty) return;
+
+    final columns = _executionData.first.keys.toList();
+    String tsvData = '';
+
+    // 헤더 추가
+    tsvData += columns.join('\t') + '\n';
+
+    // 데이터 행 추가
+    for (final row in _executionData) {
+      final values = columns.map((col) => row[col]?.toString() ?? '').toList();
+      tsvData += values.join('\t') + '\n';
+    }
+
+    // 클립보드에 복사
+    Clipboard.setData(ClipboardData(text: tsvData));
+    
+    // 사용자에게 알림
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('📋 테이블 데이터가 클립보드에 복사되었습니다!'),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 }

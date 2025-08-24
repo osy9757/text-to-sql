@@ -146,17 +146,21 @@ class SQLExecutionAgent(BaseAgent):
                 )
             else:
                 # 실행 실패 또는 검증 실패
-                if analysis.get("needs_retry", False):
-                    # 재시도 필요
+                if analysis.get("needs_retry", False) and state.retry_count < 20:  # 최대 20회 재시도 제한
+                    # 재시도 필요 및 제한 내
+                    state.retry_count += 1
                     await self._log_failure_for_retry(state.user_query, sql_query, execution_result, analysis, session_id)
                     state.current_step = ProcessingStep.SQL_DEVELOPMENT  # SQL 재생성으로 돌아감
-                    state.error_message = f"SQL 재생성 필요: {analysis.get('retry_reason', '결과 검증 실패')}"
-                    state.processing_history.append("SQL 실행 결과 불만족으로 재생성 요청")
+                    state.error_message = f"SQL 재생성 필요 ({state.retry_count}/20): {analysis.get('retry_reason', '결과 검증 실패')}"
+                    state.processing_history.append(f"SQL 실행 결과 불만족으로 재생성 요청 (시도 {state.retry_count})")
                 else:
-                    # 완전 실패
+                    # 완전 실패 또는 재시도 횟수 초과
                     await self._log_failure_for_retry(state.user_query, sql_query, execution_result, analysis, session_id)
                     state.current_step = ProcessingStep.ERROR
-                    state.error_message = execution_result.get("error") or "SQL 실행 결과가 유효하지 않습니다."
+                    if state.retry_count >= 20:
+                        state.error_message = f"최대 재시도 횟수 초과 (20회): 더 구체적인 질의를 시도해보세요."
+                    else:
+                        state.error_message = execution_result.get("error") or "SQL 실행 결과가 유효하지 않습니다."
                     state.processing_history.append("SQL 실행 실패")
             
             return state
