@@ -637,109 +637,62 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFF7F9FA),
-              Color(0xFFE8F4F8),
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                children: [
-                  // 헤더
-                  _buildHeader(),
-                  const SizedBox(height: 40),
-                  
-                  // 메인 컨텐츠 - 전체 화면 너비 사용
-                  SizedBox(
-                    width: double.infinity,
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        double screenWidth = MediaQuery.of(context).size.width;
-                        bool isDesktop = screenWidth > 1200;
-                        bool isTablet = screenWidth > 800 && screenWidth <= 1200;
-                        
-                        if (isDesktop) {
-                          // 대형 화면: 세 컬럼 레이아웃 (질문 → 처리과정 → 결과)
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // 왼쪽 컬럼 - 입력 (질문)
-                              Expanded(
-                                flex: 2,
-                                child: _buildInputCard(),
-                              ),
-                              const SizedBox(width: 24),
-                              // 중간 컬럼 - 처리 과정
-                              Expanded(
-                                flex: 3,
-                                child: _buildProcessingPanel(),
-                              ),
-                              const SizedBox(width: 24),
-                              // 오른쪽 컬럼 - 결과
-                              Expanded(
-                                flex: 3,
-                                child: (_result.isNotEmpty || _isLoading)
-                                    ? _buildResultCard()
-                                    : Container(),
-                              ),
-                            ],
-                          );
-                        } else if (isTablet) {
-                          // 태블릿: 두 컬럼 레이아웃 (질문+처리과정 | 결과)
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // 왼쪽 컬럼 - 입력 및 처리과정
-                              Expanded(
-                                flex: 1,
-                                child: Column(
-                                  children: [
-                                    _buildInputCard(),
-                                    const SizedBox(height: 32),
-                                    _buildProcessingPanel(),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 24),
-                              // 오른쪽 컬럼 - 결과
-                              Expanded(
-                                flex: 1,
-                                child: (_result.isNotEmpty || _isLoading)
-                                    ? _buildResultCard()
-                                    : Container(),
-                              ),
-                            ],
-                          );
-                        } else {
-                          // 모바일: 단일 컬럼 레이아웃 (질문 → 처리과정 → 결과)
-                          return Column(
-                            children: [
-                              _buildInputCard(),
-                              const SizedBox(height: 32),
-                              _buildProcessingPanel(),
-                              const SizedBox(height: 32),
-                              if (_result.isNotEmpty || _isLoading)
-                                _buildResultCard(),
-                            ],
-                          );
-                        }
-                      },
-                    ),
-                  ),
+      body: Stack(
+        children: [
+          // 메인 컨텐츠
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFFF7F9FA),
+                  Color(0xFFE8F4F8),
                 ],
               ),
             ),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    children: [
+                      // 헤더
+                      _buildHeader(),
+                      const SizedBox(height: 32),
+                      
+                      // 입력 영역 (컴팩트하게)
+                      _buildCompactInputCard(),
+                      const SizedBox(height: 16),
+                      
+                      // 안내사항 및 주의사항
+                      _buildGuidelineCard(),
+                      const SizedBox(height: 24),
+                      
+                      // 결과가 있을 때만 표시
+                      if (_result.isNotEmpty || _executionData.isNotEmpty) ...[
+                        // 쿼리 결과 (가장 크게)
+                        _buildMainResultCard(),
+                        const SizedBox(height: 24),
+                        
+                        // SQL 쿼리 (접을 수 있게)
+                        _buildCollapsibleSQLCard(),
+                        const SizedBox(height: 16),
+                        
+                        // 처리 과정 (최소화)
+                        _buildMinimizedProcessingCard(),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
+          
+          // 전체 화면 로딩 오버레이
+          if (_isLoading)
+            _buildFullScreenLoading(),
+        ],
       ),
     );
   }
@@ -1853,6 +1806,411 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  // 컴팩트한 입력 카드
+  Widget _buildCompactInputCard() {
+    return Card(
+      elevation: 8,
+      shadowColor: Colors.blue.withOpacity(0.2),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              '💬 무엇이 궁금하신가요?',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF2B2D42),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _textController,
+                    onSubmitted: (_) => _submitQuery(),
+                    decoration: InputDecoration(
+                      hintText: '예: 사용자별 거래 내역을 알려주세요',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.blue),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: _submitQuery,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text('전송'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 안내사항 및 주의사항 카드
+  Widget _buildGuidelineCard() {
+    return Card(
+      color: Colors.orange.shade50,
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.info_outline, 
+                     color: Colors.orange.shade700, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  '사용 안내',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.orange.shade700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '• 한국어로 자연스럽게 질문해주세요\n'
+              '• 구체적인 조건이나 기간을 포함하면 더 정확합니다',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                border: Border.all(color: Colors.red.shade200),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.warning_amber_outlined, 
+                       color: Colors.red.shade700, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '⚠️ 이 결과는 임시 확인용입니다. 정확한 분석은 담당자에게 문의하세요.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.red.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 메인 결과 카드 (가장 크게)
+  Widget _buildMainResultCard() {
+    if (_executionData.isEmpty && _result.isEmpty) {
+      return Container();
+    }
+
+    return Card(
+      elevation: 8,
+      shadowColor: Colors.green.withOpacity(0.2),
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.table_chart, color: Colors.green.shade600),
+                const SizedBox(width: 12),
+                const Text(
+                  '📊 쿼리 결과',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF2B2D42),
+                  ),
+                ),
+                const Spacer(),
+                if (_executionData.isNotEmpty) ...[
+                  Text(
+                    '총 ${_executionData.length}건',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // 복사 버튼
+                  IconButton(
+                    onPressed: _copyTableToClipboard,
+                    icon: const Icon(Icons.copy, size: 20),
+                    tooltip: '테이블 복사',
+                    style: IconButton.styleFrom(
+                      foregroundColor: Colors.blue[600],
+                      padding: const EdgeInsets.all(8),
+                    ),
+                  ),
+                  // 엑셀 다운로드 버튼
+                  IconButton(
+                    onPressed: _downloadExcel,
+                    icon: const Icon(Icons.download, size: 20),
+                    tooltip: '엑셀 다운로드',
+                    style: IconButton.styleFrom(
+                      foregroundColor: Colors.green[600],
+                      padding: const EdgeInsets.all(8),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            // 데이터 테이블
+            if (_executionData.isNotEmpty) ...[
+              Container(
+                constraints: const BoxConstraints(
+                  maxHeight: 600, // 최대 높이 설정
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: SelectionArea(
+                  child: SingleChildScrollView(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: DataTable(
+                        headingRowColor: MaterialStateProperty.all(
+                          Colors.green.shade50,
+                        ),
+                        columns: _executionData.first.keys
+                            .map((column) => DataColumn(
+                                  label: Text(
+                                    column,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ))
+                            .toList(),
+                        rows: _executionData
+                            .map((row) => DataRow(
+                                  cells: _executionData.first.keys
+                                      .map((column) => DataCell(
+                                            Text(
+                                              row[column].toString(),
+                                              style: const TextStyle(fontSize: 13),
+                                            ),
+                                          ))
+                                      .toList(),
+                                ))
+                            .toList(),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ] else if (_result.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Text(
+                  _result,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF2B2D42),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 접을 수 있는 SQL 카드
+  Widget _buildCollapsibleSQLCard() {
+    if (_sqlQuery.isEmpty) return Container();
+
+    return Card(
+      elevation: 4,
+      child: ExpansionTile(
+        initiallyExpanded: false,
+        leading: Icon(Icons.code, color: Colors.purple.shade600),
+        title: const Text(
+          '🔍 생성된 SQL 쿼리',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: SelectableText(
+              _formatSQL(_sqlQuery),
+              style: const TextStyle(
+                fontFamily: 'Courier',
+                fontSize: 12,
+                color: Color(0xFF2B2D42),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 최소화된 처리 과정 카드
+  Widget _buildMinimizedProcessingCard() {
+    if (_chatMessages.isEmpty) return Container();
+
+    return Card(
+      elevation: 2,
+      child: ExpansionTile(
+        initiallyExpanded: false,
+        leading: Icon(Icons.settings, color: Colors.grey.shade600, size: 20),
+        title: Text(
+          '⚙️ 처리 과정 (${_chatMessages.length}단계)',
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        children: [
+          Container(
+            constraints: const BoxConstraints(maxHeight: 300),
+            padding: const EdgeInsets.all(16),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: _chatMessages.length,
+              itemBuilder: (context, index) {
+                final message = _chatMessages[index];
+                final isAgent = message['type'] == 'agent';
+                
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isAgent ? Colors.blue.shade50 : Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        message['agent'] ?? 'Unknown',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: isAgent ? Colors.blue.shade700 : Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        message['message'] ?? '',
+                        style: const TextStyle(fontSize: 11),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 전체 화면 로딩 오버레이
+  Widget _buildFullScreenLoading() {
+    return Container(
+      color: Colors.black.withOpacity(0.7),
+      child: const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 60,
+              height: 60,
+              child: CircularProgressIndicator(
+                strokeWidth: 4,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            SizedBox(height: 24),
+            Text(
+              '🤖 AI가 쿼리를 분석하고 있습니다...',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              '잠시만 기다려주세요',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
