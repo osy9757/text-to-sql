@@ -1925,7 +1925,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '⚠️ 이 결과는 임시 확인용입니다. 정확한 분석은 담당자에게 문의하세요.',
+                      '⚠️ 이 결과는 임시 확인용입니다. 정확한 분석은 따로 말씀해주세요~!',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
